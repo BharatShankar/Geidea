@@ -2,8 +2,13 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:geidea/demoModel.dart';
+import 'package:geidea/moreDetails.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/http.dart';
+import 'package:provider/provider.dart';
+
+import 'MoreDetailsProvider.dart';
+import 'constants.dart';
 
 void main() {
   runApp(MyApp());
@@ -13,16 +18,18 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Flutter Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.blue,
-        // This makes the visual density adapt to the platform that you run
-        // the app on. For desktop platforms, the controls will be smaller and
-        // closer together (more dense) than on mobile platforms.
-        visualDensity: VisualDensity.adaptivePlatformDensity,
+    return ChangeNotifierProvider(
+      create: (BuildContext context) => MoreDetailsProvider(),
+      child: MaterialApp(
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          visualDensity: VisualDensity.adaptivePlatformDensity,
+        ),
+        home: MyHomePage(title: ''),
+        routes: {
+          Constants.ROUTE_DETAILS: (context) => MoreDetails(),
+        },
       ),
-      home: MyHomePage(title: ''),
     );
   }
 }
@@ -37,64 +44,118 @@ class MyHomePage extends StatefulWidget {
 }
 
 class _MyHomePageState extends State<MyHomePage> {
-  int _counter = 0;
-  List<DemoModel> foodItemsList = [];
-  void _incrementCounter() {
-    setState(() {
-      _counter++;
-    });
-  }
+  List<Results> appsDetails = [];
 
-  Future getUsers() {
-    var url =
-        "https://rss.itunes.apple.com/api/v1/sa/ios-apps/top-free/all/100/explicit.json";
-    return http.get(url);
-  }
+  Future getFoodItems() async {
+    Response response = await get(ApiUrls.getUrl);
 
-  Future<List<DemoModel>> getFoodItems() async {
-    String url =
-        'https://rss.itunes.apple.com/api/v1/sa/ios-apps/top-free/all/100/explicit.json';
-    Response response = await get(url);
-    // sample info available in response
     int statusCode = response.statusCode;
     if (statusCode == 200) {
       print("response json $statusCode");
       String json = response.body;
       print(json);
-      Map<String, dynamic> responseData = jsonDecode(response.body);
       Map userMap = jsonDecode(response.body);
       var user = DemoModel.fromJson(userMap);
       print(user.feed.results[0].artistName);
-      // print(responseData['feed']);
-      // print("this is my data");
-      // print(foodItemsList);
-
-      return foodItemsList;
+      appsDetails = user.feed.results;
+      setState(() {});
     }
-    //loaderVisibility = false;
-    return foodItemsList;
+  }
+
+  @override
+  void initState() {
+    getFoodItems();
+    super.initState();
   }
 
   @override
   Widget build(BuildContext context) {
-    getFoodItems();
+    final detailedPageData = Provider.of<MoreDetailsProvider>(context);
 
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
         title: Text(widget.title),
       ),
-      body: ListView.builder(
-          itemCount: foodItemsList.length,
+      body: Container(
+        child: ListView.separated(
+          separatorBuilder: (context, index) {
+            return Divider();
+          },
+          itemCount: appsDetails.length ?? 1,
           itemBuilder: (BuildContext ctxt, int index) {
-            return new Text(foodItemsList[index].feed.title ?? "");
-          }),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.add),
-      ), // This trailing comma makes auto-formatting nicer for build methods.
+            return GestureDetector(
+              onTap: () {
+                // on clicking each item acton implemented here
+                detailedPageData.sendValuesToDetailsPage(appsDetails[index]);
+                Navigator.of(context).pushNamed(Constants.ROUTE_DETAILS);
+              },
+              child: new Container(
+                child: Column(
+                  children: <Widget>[
+                    Center(
+                      child: Image.network(appsDetails[index].artworkUrl100),
+                    ),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          LabelNames.NAME,
+                          style: TextStyle(
+                              color: ColorNames.fontGreyColor,
+                              fontSize: FontSizes.labelTextSize,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text(appsDetails[index]?.name ?? "",
+                            style: TextStyle(
+                                color: ColorNames.fontGreyColor,
+                                fontSize: FontSizes.labelTextSize,
+                                fontWeight: FontWeight.normal)),
+                      ],
+                    ),
+                    Text(
+                      LabelNames.GENERS,
+                      style: TextStyle(
+                          color: ColorNames.fontGreyColor,
+                          fontSize: FontSizes.labelTextSize,
+                          fontWeight: FontWeight.bold),
+                    ),
+                    generes(index),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        Text(
+                          LabelNames.RELEASE_DATE,
+                          style: TextStyle(
+                              color: ColorNames.fontGreyColor,
+                              fontSize: FontSizes.labelTextSize,
+                              fontWeight: FontWeight.bold),
+                        ),
+                        Text(appsDetails[index]?.releaseDate ?? "")
+                      ],
+                    )
+                  ],
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      // This trailing comma makes auto-formatting nicer for build methods.
+    );
+  }
+
+  Widget generes(int mainIndex) {
+    var allGeneres = appsDetails[mainIndex].genres;
+    List<Widget> generesArray = [];
+
+    for (var genere in allGeneres) {
+      generesArray.add(Text(genere.name));
+    }
+    return Container(
+      //height: 50,
+      child: Column(
+        children: generesArray,
+      ),
     );
   }
 }
